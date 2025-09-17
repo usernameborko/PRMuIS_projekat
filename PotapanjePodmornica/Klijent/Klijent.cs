@@ -52,6 +52,27 @@ namespace Klijent
             int primljeno = clientSocket.Receive(recvBuffer);
             string initMsg = Encoding.UTF8.GetString(recvBuffer, 0, primljeno);
             Console.WriteLine($"[TCP] Server: {initMsg}");
+
+            // parsirnje inicijalne poruke
+            int dimenzija = 0;
+            int promasaji = 0;
+
+            string[] parts = initMsg.Split(",");
+            foreach (var part in parts)
+            {
+                if (part.Contains("Velicina table"))
+                {
+                    string vel = part.Split(' ')[3];
+                    string[] nums = vel.Split('x');
+                    dimenzija = int.Parse(nums[0]);
+                }
+
+                if (part.Contains("promasaja"))
+                {
+                    string broj = part.Split(':')[1].Trim();
+                    promasaji = int.Parse(broj);
+                }
+            }
         }
     }
 }
