@@ -155,7 +155,199 @@ namespace Server
                 List<Socket> checkRead = new List<Socket>(igraci.Select(i => i.KlijentSocket));
                 Socket.Select(checkRead, null, null, 90000000);
 
-                
+                Igrac metaIgrac = null;
+
+                if (checkRead.Contains(napadac.KlijentSocket))
+                {
+                    int napadacBr = napadac.KlijentSocket.Receive(napadBuffer);
+                    string data = Encoding.UTF8.GetString(napadBuffer, 0, napadacBr).Trim();
+
+                    int izabraniId;
+                    if (!int.TryParse(data, out izabraniId))
+                    {
+                        napadac.KlijentSocket.Send(Encoding.UTF8.GetBytes("[GRESKA] Nevalidan ID."));
+                        continue;
+                    }
+
+                    metaIgrac = igraci.Find(x => x.Id == izabraniId);
+
+                    if (metaIgrac == null || metaIgrac.Id == napadac.Id)
+                    {
+                        napadac.KlijentSocket.Send(Encoding.UTF8.GetBytes("[GRESKA] Nevalidan izbor protivnika."));
+                        continue;
+                    }
+
+                    //saljemo prikaz table njegove mete
+                    string prikaz = PrikaziTabelu(metaIgrac, dimenzija);
+                    napadac.KlijentSocket.Send(Encoding.UTF8.GetBytes(prikaz));
+                }
+                else
+                {
+                    continue;
+                }
+
+                List<Socket> checkReadPolje = new List<Socket>(igraci.Select(i => i.KlijentSocket));
+                Socket.Select(checkReadPolje, null, null, 90000000);
+
+                int polje = -1;
+                if (checkReadPolje.Contains(napadac.KlijentSocket))
+                {
+                    int brPolje = napadac.KlijentSocket.Receive(napadBuffer);
+                    string dataPolje = Encoding.UTF8.GetString(napadBuffer, 0, brPolje).Trim();
+
+                    if (!int.TryParse(dataPolje, out polje))
+                    {
+                        napadac.KlijentSocket.Send(Encoding.UTF8.GetBytes("[GRESKA] Unesite validan broj polja!"));
+                        continue;
+                    }
+                }
+                else
+                {
+                    continue;
+                }
+
+                // odredjujemo ishod napada
+                int row = (polje - 1) / dimenzija;
+                int col = (polje - 1) % dimenzija;
+                string ishod = "PROMASIO";
+
+                if (metaIgrac.Tabla[row, col] != 0)
+                {
+                    napadac.KlijentSocket.Send(Encoding.UTF8.GetBytes("[GRESKA] Ovo polje je vec gadjano! izaberite novo polje."));
+                    continue;
+                }
+
+                foreach (var pod in metaIgrac.Podmornice)
+                {
+                    if (pod.Contains(polje))
+                    {
+                        pod.Remove(polje);
+                        metaIgrac.Tabla[row, col] = 2;
+                        if (pod.Count == 0)
+                        {
+                            ishod = "POTOPIO";
+                        }
+                        else
+                        {
+                            ishod = "POGODIO";
+                        }
+                        break;
+                    }
+                }
+
+                if (ishod == "PROMASIO")
+                {
+                    metaIgrac.Tabla[row, col] = 1;
+                    napadac.Promasaji++;
+                }
+                else
+                {
+                    napadac.Pogoci++;
+                }
+
+                // saljemo ishod
+                napadac.KlijentSocket.Send(Encoding.UTF8.GetBytes(ishod));
+
+                Console.WriteLine($"[LOG] Igrac {napadac.Id} -> Igrac {metaIgrac.Id}: polje {polje}, {ishod}");
+
+                PosaljiAzuriranuTabeluSvima(igraci, metaIgrac, dimenzija);
+
+                if (napadac.Promasaji >= promasaji)
+                {
+                    Console.WriteLine($"[INFO] Igrac {napadac.Id} eliminisan zbog previše promašaja!");
+                    napadac.Podmornice.Clear();
+                }
+
+                var aktivni = igraci.Where(i => i.Podmornice.Any(p => p.Count > 0)
+                             && i.Promasaji < promasaji).ToList();
+
+                if (aktivni.Count <= 1)
+                {
+                    igraGotova = true;
+                    Console.WriteLine("[KRAJ IGRE]");
+
+                    foreach (var ig in igraci)
+                    {
+                        if (aktivni.Contains(ig))
+                        {
+                            ig.KlijentSocket.Send(Encoding.UTF8.GetBytes($"Cestitamo, pobedili ste! Broj pogodaka: {ig.Pogoci}"));
+                        }
+                        else
+                        {
+                            ig.KlijentSocket.Send(Encoding.UTF8.GetBytes($"Nazalost, izgubili ste. Pogodaka: {ig.Pogoci}"));
+                        }
+                    }
+
+                    foreach (var ig in igraci)
+                    {
+                        try
+                        {
+                            ig.KlijentSocket.Shutdown(SocketShutdown.Both);
+                            ig.KlijentSocket.Close();
+                        }
+                        catch { /* već zatvoren */ }
+                    }
+                    tcpSocket.Close();
+
+                    // Rang lista
+                    Console.WriteLine("\n=== Rang lista ===");
+                    foreach (var ig in igraci.OrderByDescending(x => x.Podmornice.Sum(p => p.Count))
+                                             .ThenByDescending(x => x.Pogoci))
+                    {
+                        int preostale = ig.Podmornice.Sum(p => p.Count);
+                        Console.WriteLine($"Igrac {ig.Id}: preostale celije {preostale}, pogodaka {ig.Pogoci}");
+                    }
+                }
+
+                if (ishod == "PROMASIO")
+                {
+                    trenutniIgracIndex = (trenutniIgracIndex + 1) % igraci.Count;
+                }
+            }
+        }
+
+        static string PrikaziTabelu(Igrac meta, int dim)
+        {
+            StringBuilder sb = new StringBuilder();
+            for (int r = 0; r < dim; r++)
+            {
+                for (int c = 0; c < dim; c++)
+                {
+                    int stanje = meta.Tabla[r, c];
+                    if (stanje == 0)
+                    {
+                        sb.Append("0 ");
+                    }
+                    else if (stanje == 1)
+                    {
+                        sb.Append("# ");
+                    }
+                    else if (stanje == 2)
+                    {
+                        sb.Append("X ");
+                    }
+                }
+                sb.AppendLine();
+            }
+            return sb.ToString();
+        }
+
+        static void PosaljiAzuriranuTabeluSvima(List<Igrac> igraci, Igrac metaIgrac, int dimenzija)
+        {
+            string prikazTable = PrikaziTabelu(metaIgrac, dimenzija);
+            string poruka = $"[UPDATE] Stanje table Igraca {metaIgrac.Id} nakon poteza:\n{prikazTable}\n";
+            byte[] porukaBytes = Encoding.UTF8.GetBytes(poruka);
+
+            foreach (var igrac in igraci)
+            {
+                try
+                {
+                    igrac.KlijentSocket.Send(porukaBytes);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[GRESKA] Slanje table igracu {igrac.Id}: {ex.Message}");
+                }
             }
         }
     }
