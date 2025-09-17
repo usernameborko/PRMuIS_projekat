@@ -129,6 +129,34 @@ namespace Server
             }
 
             Console.WriteLine("[INFO] Svi igraci su poslali svoje podmornice!");
+
+            // jedan potez zadatak 5
+            int trenutniIgracIndex = 0;
+            bool igraGotova = false;
+
+            while (!igraGotova)
+            {
+                Igrac napadac = igraci[trenutniIgracIndex];
+
+                // saljemo listu meta (id)
+                StringBuilder listaMeta = new StringBuilder("Izaberite kojeg igraca gadjate:\n");
+                foreach (var meta in igraci)
+                {
+                    if (meta.Id != napadac.Id)
+                    {
+                        listaMeta.AppendLine($"Igrac {meta.Id}");
+                    }
+                }
+                napadac.KlijentSocket.Send(Encoding.UTF8.GetBytes(listaMeta.ToString()));
+
+                // dobijamo koga igrac gadja
+                byte[] napadBuffer = new byte[1024];
+
+                List<Socket> checkRead = new List<Socket>(igraci.Select(i => i.KlijentSocket));
+                Socket.Select(checkRead, null, null, 90000000);
+
+                
+            }
         }
     }
 }

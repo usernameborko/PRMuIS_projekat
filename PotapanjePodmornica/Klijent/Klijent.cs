@@ -7,6 +7,12 @@ using System.Text;
 
 namespace Klijent
 {
+    enum StanjeKlijenta
+    {
+        Idle,
+        BiranjeMeta,
+        UnosPolja
+    }
     public class Klijent
     {
         static void Main(string[] args)
@@ -128,6 +134,76 @@ namespace Klijent
             clientSocket.Send(data);
 
             Console.WriteLine($"[TCP] Poslate podmornice serveru: {porukaZaServer}");
+
+            StanjeKlijenta stanje = StanjeKlijenta.BiranjeMeta;
+
+            while (true)
+            {
+                byte[] buffer = new byte[2048];
+                int napdaBr;
+
+                try
+                {
+                    napdaBr = clientSocket.Receive(buffer);
+                }
+                catch
+                {
+                    Console.WriteLine("Server je zatvorio vezu.");
+                    break;
+                }
+
+                string msg = Encoding.UTF8.GetString(buffer, 0, napdaBr);
+
+                if (msg.Contains("Cestitamo") || msg.Contains("Nazalost"))
+                {
+                    Console.WriteLine(msg);
+                    break;
+                }
+
+                if (msg.StartsWith("Izaberite"))
+                {
+                    if (stanje == StanjeKlijenta.BiranjeMeta)
+                    {
+                        Console.WriteLine(msg);
+                        Console.Write("Unesite ID protivnika: ");
+                        string targetId = Console.ReadLine();
+                        clientSocket.Send(Encoding.UTF8.GetBytes(targetId));
+
+                        stanje = StanjeKlijenta.UnosPolja;
+                    }
+                    continue;
+                }
+                else if (msg.Contains("0") || msg.Contains("#") || msg.Contains("X"))
+                {
+
+                    if (stanje == StanjeKlijenta.UnosPolja)
+                    {
+                        Console.WriteLine("Tabela protivnika:");
+                        Console.WriteLine(msg);
+
+                        Console.Write("Unesite broj polja koje gadjate: ");
+                        string polje = Console.ReadLine();
+                        clientSocket.Send(Encoding.UTF8.GetBytes(polje));
+
+                        stanje = StanjeKlijenta.Idle;
+                    }
+                    continue;
+                }
+                else if (msg.StartsWith("[UPDATE]"))
+                {
+                    Console.WriteLine(msg);
+                    continue;
+                }
+                else
+                {
+                    Console.WriteLine(msg);
+
+                    if (msg.Contains("PROMASIO") || msg.Contains("POGODIO") || msg.Contains("POTOPIO"))
+                    {
+                        stanje = StanjeKlijenta.BiranjeMeta;
+                    }
+                }
+            }
         }
     }
 }
