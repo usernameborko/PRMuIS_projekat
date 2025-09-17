@@ -136,24 +136,32 @@ namespace Server
 
             while (!igraGotova)
             {
-                Igrac napadac = igraci[trenutniIgracIndex];
+                var aktivni = igraci.Where(i => i.Podmornice.Any(p => p.Count > 0) && i.Promasaji < promasaji).ToList();
 
-                // saljemo listu meta (id)
+                if (aktivni.Count == 0)
+                {
+                    igraGotova = true;
+                    break;
+                }
+
+                if (trenutniIgracIndex >= aktivni.Count)
+                    trenutniIgracIndex = 0;
+
+                Igrac napadac = aktivni[trenutniIgracIndex];
+                int pozicijaUStaroAktivni = trenutniIgracIndex;
+
                 StringBuilder listaMeta = new StringBuilder("Izaberite kojeg igraca gadjate:\n");
-                foreach (var meta in igraci)
+                foreach (var meta in aktivni)
                 {
                     if (meta.Id != napadac.Id)
-                    {
                         listaMeta.AppendLine($"Igrac {meta.Id}");
-                    }
                 }
                 napadac.KlijentSocket.Send(Encoding.UTF8.GetBytes(listaMeta.ToString()));
 
-                // dobijamo koga igrac gadja
                 byte[] napadBuffer = new byte[1024];
 
-                List<Socket> checkRead = new List<Socket>(igraci.Select(i => i.KlijentSocket));
-                Socket.Select(checkRead, null, null, 90000000);
+                List<Socket> checkRead = new List<Socket> { napadac.KlijentSocket };
+                Socket.Select(checkRead, null, null, 10000000);
 
                 Igrac metaIgrac = null;
 
@@ -162,14 +170,13 @@ namespace Server
                     int napadacBr = napadac.KlijentSocket.Receive(napadBuffer);
                     string data = Encoding.UTF8.GetString(napadBuffer, 0, napadacBr).Trim();
 
-                    int izabraniId;
-                    if (!int.TryParse(data, out izabraniId))
+                    if (!int.TryParse(data, out int izabraniId))
                     {
                         napadac.KlijentSocket.Send(Encoding.UTF8.GetBytes("[GRESKA] Nevalidan ID."));
                         continue;
                     }
 
-                    metaIgrac = igraci.Find(x => x.Id == izabraniId);
+                    metaIgrac = aktivni.Find(x => x.Id == izabraniId);
 
                     if (metaIgrac == null || metaIgrac.Id == napadac.Id)
                     {
@@ -177,7 +184,6 @@ namespace Server
                         continue;
                     }
 
-                    //saljemo prikaz table njegove mete
                     string prikaz = PrikaziTabelu(metaIgrac, dimenzija);
                     napadac.KlijentSocket.Send(Encoding.UTF8.GetBytes(prikaz));
                 }
@@ -186,7 +192,7 @@ namespace Server
                     continue;
                 }
 
-                List<Socket> checkReadPolje = new List<Socket>(igraci.Select(i => i.KlijentSocket));
+                List<Socket> checkReadPolje = new List<Socket> { napadac.KlijentSocket };
                 Socket.Select(checkReadPolje, null, null, 90000000);
 
                 int polje = -1;
@@ -206,7 +212,6 @@ namespace Server
                     continue;
                 }
 
-                // odredjujemo ishod napada
                 int row = (polje - 1) / dimenzija;
                 int col = (polje - 1) % dimenzija;
                 string ishod = "PROMASIO";
@@ -245,7 +250,6 @@ namespace Server
                     napadac.Pogoci++;
                 }
 
-                // saljemo ishod
                 napadac.KlijentSocket.Send(Encoding.UTF8.GetBytes(ishod));
 
                 Console.WriteLine($"[LOG] Igrac {napadac.Id} -> Igrac {metaIgrac.Id}: polje {polje}, {ishod}");
@@ -258,17 +262,17 @@ namespace Server
                     napadac.Podmornice.Clear();
                 }
 
-                var aktivni = igraci.Where(i => i.Podmornice.Any(p => p.Count > 0)
-                             && i.Promasaji < promasaji).ToList();
+                var noviAktivni = igraci.Where(i => i.Podmornice.Any(p => p.Count > 0) && i.Promasaji < promasaji).ToList();
 
-                if (aktivni.Count <= 1)
+                if (noviAktivni.Count <= 1)
                 {
                     igraGotova = true;
+
                     Console.WriteLine("[KRAJ IGRE]");
 
                     foreach (var ig in igraci)
                     {
-                        if (aktivni.Contains(ig))
+                        if (noviAktivni.Contains(ig))
                         {
                             ig.KlijentSocket.Send(Encoding.UTF8.GetBytes($"Cestitamo, pobedili ste! Broj pogodaka: {ig.Pogoci}"));
                         }
@@ -282,28 +286,39 @@ namespace Server
                     {
                         try
                         {
-                            ig.KlijentSocket.Shutdown(SocketShutdown.Both);
                             ig.KlijentSocket.Close();
                         }
-                        catch { /* već zatvoren */ }
+                        catch { }
                     }
                     tcpSocket.Close();
 
-                    // Rang lista
                     Console.WriteLine("\n=== Rang lista ===");
-                    foreach (var ig in igraci.OrderByDescending(x => x.Podmornice.Sum(p => p.Count))
-                                             .ThenByDescending(x => x.Pogoci))
+                    foreach (var ig in igraci.OrderByDescending(x => x.Podmornice.Sum(p => p.Count)).ThenByDescending(x => x.Pogoci))
                     {
                         int preostale = ig.Podmornice.Sum(p => p.Count);
                         Console.WriteLine($"Igrac {ig.Id}: preostale celije {preostale}, pogodaka {ig.Pogoci}");
                     }
+                    break;
                 }
 
-                if (ishod == "PROMASIO")
+                if (napadac.Promasaji >= promasaji)
                 {
-                    trenutniIgracIndex = (trenutniIgracIndex + 1) % igraci.Count;
+                    trenutniIgracIndex = pozicijaUStaroAktivni % noviAktivni.Count;
+                }
+                else
+                {
+                    int newIndex = noviAktivni.FindIndex(x => x.Id == napadac.Id);
+                    if (ishod == "PROMASIO")
+                    {
+                        trenutniIgracIndex = (newIndex + 1) % noviAktivni.Count;
+                    }
+                    else
+                    {
+                        trenutniIgracIndex = newIndex;
+                    }
                 }
             }
+
         }
 
         static string PrikaziTabelu(Igrac meta, int dim)
