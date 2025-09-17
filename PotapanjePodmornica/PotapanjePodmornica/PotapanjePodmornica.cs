@@ -1,6 +1,6 @@
-﻿namespace Server
+﻿namespace PotapanjePodmornica
 {
-    internal class Program
+    public class PotapanjePodmornica
     {
         static void Main(string[] args)
         {
