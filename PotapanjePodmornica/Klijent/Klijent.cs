@@ -73,6 +73,61 @@ namespace Klijent
                     promasaji = int.Parse(broj);
                 }
             }
+
+            // unos podmornica
+            int brojPodmornica = Math.Max(1, dimenzija / 2);
+
+            List<List<int>> svePodmornice = new List<List<int>>();
+
+            for (int i = 0; i < brojPodmornica; i++)
+            {
+                while (true)
+                {
+                    try
+                    {
+                        Console.Write($"\nUnesite polje za podmornicu {i + 1}/{brojPodmornica}: ");
+                        int start = int.Parse(Console.ReadLine());
+
+                        Console.WriteLine("Unesite orijentaciju: ");
+                        Console.WriteLine("1 - gore desno   2 - gore lijevo");
+                        Console.WriteLine("3 - dole desno   4 - dole lijevo");
+                        int orijent = int.Parse(Console.ReadLine());
+
+                        Podmornica nova = new Podmornica(start, orijent, dimenzija);
+
+                        bool sudara = false;
+                        foreach (var postojeca in svePodmornice)
+                        {
+                            if (Podmornica.Dodiruje(postojeca, nova.Polja, dimenzija))
+                            {
+                                sudara = true;
+                            }
+                        }
+
+                        if (sudara)
+                        {
+                            Console.WriteLine("[GRESKA] Nova podmornica se poklapa ili dodiruje sa vec postojecim!");
+                            continue;
+                        }
+
+                        svePodmornice.Add(nova.Polja);
+                        Console.WriteLine($"Podmornica {i + 1} postavljena: {string.Join(",", nova.Polja)}");
+                        break;
+
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("[GRESKA] " + ex.Message);
+                    }
+                }
+            }
+
+            // slanje podmornica na server
+            string porukaZaServer = string.Join(";", svePodmornice.ConvertAll(p => string.Join(",", p)));
+            byte[] data = Encoding.UTF8.GetBytes(porukaZaServer);
+            clientSocket.Send(data);
+
+            Console.WriteLine($"[TCP] Poslate podmornice serveru: {porukaZaServer}");
         }
     }
 }

@@ -90,6 +90,45 @@ namespace Server
                 klijent.Send(initBytes);
             }
             Console.WriteLine("[TCP] Poslata inicijalna poruka svim igracima!");
+
+            // cuvanje podmornica
+            List<Igrac> igraci = new List<Igrac>();
+            int idBrojac = 1;
+
+            foreach (var klijent in tcpKlijenti)
+            {
+                byte[] podmorniceBuffer = new byte[1024];
+                int brBajta = klijent.Receive(podmorniceBuffer);
+                string podatak = Encoding.UTF8.GetString(podmorniceBuffer, 0, brBajta);
+                Console.WriteLine($"[TCP] Podmornice of {klijent.RemoteEndPoint}: {podatak}");
+
+                List<List<int>> listaPodmornica = new List<List<int>>();
+                string[] sve = podatak.Split(';');
+                foreach (var subs in sve)
+                {
+                    List<int> polja = new List<int>();
+                    foreach (var broj in subs.Split(","))
+                    {
+                        if (int.TryParse(broj, out int p))
+                        {
+                            polja.Add(p);
+                        }
+                    }
+                    listaPodmornica.Add(polja);
+                }
+
+                Igrac igrac = new Igrac(idBrojac++, klijent, dimenzija, listaPodmornica);
+
+                igraci.Add(igrac);
+
+                Console.WriteLine($"[INFO] Igrac {klijent.RemoteEndPoint} je poslao podmornice: ");
+                for (int i = 0; i < listaPodmornica.Count; i++)
+                {
+                    Console.WriteLine($"    Podmornica {i + 1}: {string.Join(",", listaPodmornica[i])}");
+                }
+            }
+
+            Console.WriteLine("[INFO] Svi igraci su poslali svoje podmornice!");
         }
     }
 }
