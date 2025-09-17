@@ -1,9 +1,18 @@
-﻿namespace Server
+﻿using Server.Helpers;
+using System.Net;
+using System.Net.Mime;
+using System.Net.Sockets;
+using System.Runtime.InteropServices;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.Text;
+
+namespace Server
 {
     public class Server
     {
         static void Main(string[] args)
         {
+
             Console.WriteLine("=== SERVER ZA IGRU 'POTAPANJE PODMORNICA' ==='");
 
             // unos parametara zadatak 2
@@ -45,6 +54,42 @@
             }
 
             Console.WriteLine("\n=== Svi igraci su prijavljeni! ===");
+
+            int tcpPort = 15001;
+            string porukaTcp = $"UDP_OK: TCP 127.0.0.1:{tcpPort}";
+            byte[] tcpInfo = Encoding.UTF8.GetBytes(porukaTcp);
+
+            foreach (var ep in prijavljeni)
+            {
+                udpSocket.SendTo(tcpInfo, ep);
+            }
+            udpSocket.Close();
+            Console.WriteLine($"[UDP] Poslati TCP parametri igracima: {porukaTcp}");
+
+            // TCP
+            Socket tcpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            IPEndPoint tcpEP = new IPEndPoint(IPAddress.Any, tcpPort);
+            tcpSocket.Bind(tcpEP);
+            tcpSocket.Listen(brojIgraca);
+            Console.WriteLine($"[TCP] Server slusa na {tcpEP}");
+
+            List<Socket> tcpKlijenti = new List<Socket>();
+            while (tcpKlijenti.Count < brojIgraca)
+            {
+                Socket accepted = tcpSocket.Accept();
+                tcpKlijenti.Add(accepted);
+                Console.WriteLine($"[TCP] Povezao se igrac {tcpKlijenti.Count}/{brojIgraca} sa {accepted.RemoteEndPoint}");
+            }
+
+            // slanje inicijalne poruke
+            string initMsg = $"Velicina table je {dimenzija}x{dimenzija}, " + $"posaljite brojevne vrijednosti polja vasih podmornica (1-{dimenzija * dimenzija}). " + $"Ukupno dozvoljen broj promasaja: {promasaji}";
+            byte[] initBytes = Encoding.UTF8.GetBytes(initMsg);
+
+            foreach (var klijent in tcpKlijenti)
+            {
+                klijent.Send(initBytes);
+            }
+            Console.WriteLine("[TCP] Poslata inicijalna poruka svim igracima!");
         }
     }
 }

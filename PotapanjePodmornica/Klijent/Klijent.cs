@@ -1,4 +1,11 @@
-﻿namespace Klijent
+﻿using Klijent.Helpers;
+using System;
+using System.Net;
+using System.Net.Sockets;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.Text;
+
+namespace Klijent
 {
     public class Klijent
     {
@@ -28,6 +35,23 @@
             string odgovor = Encoding.UTF8.GetString(prijemniBafer, 0, brBajta);
             Console.WriteLine($"[UDP] Odgovor servera: {odgovor}");
             udpSocket.Close();
+
+            string[] dijelovi = odgovor.Split(' ');
+            string tcpInfo = dijelovi[2];
+            string[] ipPort = tcpInfo.Split(':');
+            string ip = ipPort[0];
+            int port = int.Parse(ipPort[1]);
+
+            // TCP konekcija
+            Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            clientSocket.Connect(new IPEndPoint(IPAddress.Parse(ip), port));
+            Console.WriteLine($"[TCP] Povezan na server {ip}:{port}");
+
+            // primanje inicijalne poruke sa servera
+            byte[] recvBuffer = new byte[1024];
+            int primljeno = clientSocket.Receive(recvBuffer);
+            string initMsg = Encoding.UTF8.GetString(recvBuffer, 0, primljeno);
+            Console.WriteLine($"[TCP] Server: {initMsg}");
         }
     }
 }
