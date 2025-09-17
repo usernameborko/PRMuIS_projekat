@@ -1,0 +1,21 @@
+# Visual Studio files
+.vs/
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.aps
+*.pch
+*.vspscc
+*_i.c
+*_p.c
+*.ncb
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# Compiled files
+*.dll
+*.exe
+*.pdb
