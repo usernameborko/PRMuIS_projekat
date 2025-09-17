@@ -157,8 +157,22 @@ namespace Klijent
                 if (msg.Contains("Cestitamo") || msg.Contains("Nazalost"))
                 {
                     Console.WriteLine(msg);
+                    continue;
+                }
+
+                if (msg.StartsWith("KRAJ|"))
+                {
+                    Console.WriteLine("=== KRAJ IGRE ===");
+                    string rangLista = msg.Substring(5);
+                    Console.WriteLine(rangLista);
+
+                    Console.WriteLine("Pritisnite Enter za izlaz...");
+                    Console.ReadLine();
+
+                    clientSocket.Close();
                     break;
                 }
+
 
                 if (msg.StartsWith("Izaberite"))
                 {

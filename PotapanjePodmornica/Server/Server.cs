@@ -282,23 +282,33 @@ namespace Server
                         }
                     }
 
+                    // rang lista
+                    var rangLista = new StringBuilder("\n=== Rang lista ===\n");
+
+                    foreach (var ig in igraci
+                        .OrderByDescending(x => x.Podmornice.Sum(p => p.Count)) // prvo ko je živ
+                        .ThenByDescending(x => x.Pogoci))                      // pa broj pogodaka
+                    {
+                        int preostale = ig.Podmornice.Sum(p => p.Count);
+                        rangLista.AppendLine($"Igrac {ig.Id}: pogodaka {ig.Pogoci}, preostale celije {preostale}");
+                    }
+
+
+                    string krajPoruka = $"KRAJ|{rangLista}";
+                    byte[] krajBytes = Encoding.UTF8.GetBytes(krajPoruka);
+
                     foreach (var ig in igraci)
                     {
                         try
                         {
-                            ig.KlijentSocket.Close();
+                            ig.KlijentSocket.Send(krajBytes);
                         }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[GRESKA] Slanje kraja igracu {ig.Id}: {ex.Message}");
+                        }
                     }
-                    tcpSocket.Close();
 
-                    Console.WriteLine("\n=== Rang lista ===");
-                    foreach (var ig in igraci.OrderByDescending(x => x.Podmornice.Sum(p => p.Count)).ThenByDescending(x => x.Pogoci))
-                    {
-                        int preostale = ig.Podmornice.Sum(p => p.Count);
-                        Console.WriteLine($"Igrac {ig.Id}: preostale celije {preostale}, pogodaka {ig.Pogoci}");
-                    }
-                    break;
                 }
 
                 if (napadac.Promasaji >= promasaji)
