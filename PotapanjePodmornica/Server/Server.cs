@@ -275,6 +275,7 @@ namespace Server
                         if (noviAktivni.Contains(ig))
                         {
                             ig.KlijentSocket.Send(Encoding.UTF8.GetBytes($"Cestitamo, pobedili ste! Broj pogodaka: {ig.Pogoci}"));
+                            Console.WriteLine($"Igrac {ig.Id} je pobjednik!");
                         }
                         else
                         {
@@ -286,13 +287,13 @@ namespace Server
                     var rangLista = new StringBuilder("\n=== Rang lista ===\n");
 
                     foreach (var ig in igraci
-                        .OrderByDescending(x => x.Podmornice.Sum(p => p.Count)) // prvo ko je živ
-                        .ThenByDescending(x => x.Pogoci))                      // pa broj pogodaka
+                        .OrderByDescending(x => x.Podmornice.Sum(p => p.Count))
+                        .ThenByDescending(x => x.Pogoci))                      
                     {
                         int preostale = ig.Podmornice.Sum(p => p.Count);
                         rangLista.AppendLine($"Igrac {ig.Id}: pogodaka {ig.Pogoci}, preostale celije {preostale}");
                     }
-
+                    
 
                     string krajPoruka = $"KRAJ|{rangLista}";
                     byte[] krajBytes = Encoding.UTF8.GetBytes(krajPoruka);
@@ -308,6 +309,20 @@ namespace Server
                             Console.WriteLine($"[GRESKA] Slanje kraja igracu {ig.Id}: {ex.Message}");
                         }
                     }
+
+                    foreach (var ig in igraci)
+                    {
+                        try
+                        {
+                            ig.KlijentSocket.Close();
+                        }
+                        catch
+                        {
+
+                        }
+                    }
+                    tcpSocket.Close();
+
 
                 }
 
@@ -328,6 +343,8 @@ namespace Server
                     }
                 }
             }
+
+            Console.ReadKey();
 
         }
 
@@ -360,13 +377,18 @@ namespace Server
         static void PosaljiAzuriranuTabeluSvima(List<Igrac> igraci, Igrac metaIgrac, int dimenzija)
         {
             string prikazTable = PrikaziTabelu(metaIgrac, dimenzija);
-            string poruka = $"[UPDATE] Stanje table Igraca {metaIgrac.Id} nakon poteza:\n{prikazTable}\n";
-            byte[] porukaBytes = Encoding.UTF8.GetBytes(poruka);
 
             foreach (var igrac in igraci)
             {
                 try
                 {
+                    string poruka;
+                    if (igrac.Id == metaIgrac.Id)
+                        poruka = $"[UPDATE] Ovo je vaša tabela nakon napada:\n{prikazTable}\n";
+                    else
+                        poruka = $"[UPDATE] Stanje table igrača {metaIgrac.Id} nakon poteza:\n{prikazTable}\n";
+
+                    byte[] porukaBytes = Encoding.UTF8.GetBytes(poruka);
                     igrac.KlijentSocket.Send(porukaBytes);
                 }
                 catch (Exception ex)
@@ -375,5 +397,6 @@ namespace Server
                 }
             }
         }
+
     }
 }
